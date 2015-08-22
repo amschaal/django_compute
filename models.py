@@ -1,7 +1,6 @@
 from django.db import models
 from jsonfield.fields import JSONField
-from django_compute.exceptions import JobAlreadyRunException,\
-    JobTerminationException
+from django_compute.exceptions import JobAlreadyRunException, JobTerminationException
 import string
 import random
 import copy

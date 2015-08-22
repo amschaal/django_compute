@@ -7,10 +7,11 @@ class LocalJobEngine(BaseJobEngine):
         p = subprocess.Popen([self.job.script_path]+args)
         self.job.job_id = p.pid
         self.job.save()
+        BaseJobEngine.run(self)
     def terminate(self):
         if self.job.job_id:
             print "Kill "+str(self.job.job_id)
-            os.kill(self.job.job_id, signal.SIGKILL)
+            os.kill(int(self.job.job_id), signal.SIGKILL)
+            BaseJobEngine.terminate(self)
         else:
             raise JobTerminationException
-    

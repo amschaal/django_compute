@@ -10,7 +10,7 @@ from django.template.context import Context
 import os
 import stat
 from django.core.urlresolvers import reverse
-from django.db.models.signals import post_save, post_init
+from django.db.models.signals import post_save, post_init, pre_save
 from django_compute.utils import merge
 
 
@@ -31,33 +31,7 @@ class JobTemplate(models.Model):
     default_args = JSONField(blank=True,null=True)
     def __unicode__(self):
         return self.id
-    def create_script(self,job):
-        file = self.template
-        file.open(mode='rb')
-        template = Template(file.read())
-        c = Context(job.params)
-        rendered = template.render(c)
-        script = open(job.script_path, 'w')
-        script.write(rendered)
-        script.close()
-        st = os.stat(job.script_path)
-        os.chmod(job.script_path, st.st_mode | 0111)
-    def create_job(self,path,params={},args=None):
-        if not args:
-            args = self.default_args if self.default_args else []
-#         job_params = copy.copy(self.default_params)
-        job_params = merge(self.default_params,params)
-        job = Job.objects.create(template=self,script_path=path,params=job_params,args=args)
-        job.params['update_url']=job.update_url
-        job.save()
-        try:
-            self.create_script(job)
-        except Exception, e:
-            job.delete()
-            raise e
-        return job
-#         job = Job.objects.create(template=self,)
-    
+
 class Job(models.Model):
     STATUS_QUEUED = 'QUEUED'
     STATUS_STARTED = 'STARTED'
@@ -65,6 +39,7 @@ class Job(models.Model):
     STATUS_TERMINATED = 'TERMINATED'
     STATUS_DONE = 'DONE'
     STATUSES = ((STATUS_QUEUED,'Queued'),(STATUS_STARTED,'Started'),(STATUS_FAILED,'Failed'),(STATUS_TERMINATED,'Terminated'),(STATUS_DONE,'Done'),)
+    
     id = models.CharField(max_length=10,default=id_generator,primary_key=True)
     created = models.DateTimeField(auto_now=True)
     run_at = models.DateTimeField(blank=True,null=True)
@@ -76,6 +51,8 @@ class Job(models.Model):
     args = JSONField(blank=True,null=True)
     status = models.CharField(choices=STATUSES, max_length=10,blank=True,null=True)
     data = JSONField(default='{}')
+    output_directory = models.CharField(max_length=100,null=True,blank=True)
+    callback_id = models.CharField(max_length=30,blank=True,null=True)
     class Meta:
         ordering = ['-created']
     def __unicode__(self):
@@ -83,6 +60,10 @@ class Job(models.Model):
     @property
     def update_url(self):
         return "http://127.0.0.1:8000" + reverse('update_job', kwargs={'job_id':self.id})+'?api_key=%s'%self.api_key
+    def get_params(self):
+        return merge(self.template.default_params,self.params)
+    def get_args(self):
+        return self.args if self.args else self.template.default_args
     def run(self):
         if self.job_id:
             raise JobAlreadyRunException("This job has already been run.  Current status: '%s'" % self.status)
@@ -98,6 +79,23 @@ def post_job_init(sender,**kwargs):
     job._engine = JobEngineFactory.create(job)
 post_init.connect(post_job_init, sender=Job)
 
-# def job_saved(sender,**kwargs):
-#     job = kwargs['instance']
-# post_save.connect(job_saved, sender=Job)
+def job_saved(sender,**kwargs):
+    job = kwargs['instance']
+    try:
+        file = job.template.template
+        file.open(mode='rb')
+        template = Template(file.read())
+        params = merge(job.get_params(),{'update_url':job.update_url})
+        c = Context(params)
+        rendered = template.render(c)
+        script = open(job.script_path, 'w')
+        script.write(rendered)
+        script.close()
+        st = os.stat(job.script_path)
+        os.chmod(job.script_path, st.st_mode | 0111)
+    except Exception, e:
+        job.delete()
+        raise e
+    return job
+post_save.connect(job_saved, sender=Job)
+

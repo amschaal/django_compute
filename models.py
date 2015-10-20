@@ -12,7 +12,7 @@ import stat
 from django.core.urlresolvers import reverse
 from django.db.models.signals import post_save, post_init, pre_save
 from django_compute.utils import merge
-
+from django.conf import settings
 
 
 def id_generator(size=10, chars=string.ascii_uppercase + string.digits):
@@ -59,7 +59,7 @@ class Job(models.Model):
         return '%s: %s - %s (%s)'%(self.template.id,self.id,str(self.created),self.status)
     @property
     def update_url(self):
-        return "http://127.0.0.1:8000" + reverse('update_job', kwargs={'job_id':self.id})+'?api_key=%s'%self.api_key
+        return settings.SITE_URL + reverse('update_job', kwargs={'job_id':self.id})+'?api_key=%s'%self.api_key
     def get_params(self):
         return merge(self.template.default_params,self.params)
     def get_args(self):

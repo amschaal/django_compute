@@ -41,6 +41,9 @@ class Job(models.Model):
     STATUSES = ((STATUS_QUEUED,'Queued'),(STATUS_STARTED,'Started'),(STATUS_FAILED,'Failed'),(STATUS_TERMINATED,'Terminated'),(STATUS_DONE,'Done'),)
     
     id = models.CharField(max_length=10,default=id_generator,primary_key=True)
+    parent = models.ForeignKey('self',blank=True,null=True,related_name='children')
+    name = models.CharField(max_length=250,blank=True,null=True)
+    description = models.TextField(blank=True,null=True)
     created = models.DateTimeField(auto_now=True)
     run_at = models.DateTimeField(blank=True,null=True)
     api_key = models.CharField(max_length=10,default=id_generator)

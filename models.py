@@ -48,7 +48,7 @@ class Job(models.Model):
     run_at = models.DateTimeField(blank=True,null=True)
     api_key = models.CharField(max_length=10,default=id_generator)
     job_id = models.CharField(max_length=15,blank=True,null=True)
-    template = models.ForeignKey(JobTemplate)
+    template = models.ForeignKey(JobTemplate,blank=True,null=True)
     script_path = models.CharField(max_length=250)
     params = JSONField(default='{}')
     args = JSONField(blank=True,null=True)
@@ -85,17 +85,18 @@ post_init.connect(post_job_init, sender=Job)
 def job_saved(sender,**kwargs):
     job = kwargs['instance']
     try:
-        file = job.template.template
-        file.open(mode='rb')
-        template = Template(file.read())
-        params = merge(job.get_params(),{'update_url':job.update_url})
-        c = Context(params)
-        rendered = template.render(c)
-        script = open(job.script_path, 'w')
-        script.write(rendered)
-        script.close()
-        st = os.stat(job.script_path)
-        os.chmod(job.script_path, st.st_mode | 0111)
+        if job.template:
+            file = job.template.template
+            file.open(mode='rb')
+            template = Template(file.read())
+            params = merge(job.get_params(),{'update_url':job.update_url})
+            c = Context(params)
+            rendered = template.render(c)
+            script = open(job.script_path, 'w')
+            script.write(rendered)
+            script.close()
+            st = os.stat(job.script_path)
+            os.chmod(job.script_path, st.st_mode | 0111)
     except Exception, e:
         job.delete()
         raise e
